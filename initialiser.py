@@ -4,7 +4,7 @@ import numpy as np
 
 camera_names = [f"cam{i}" for i in range(1, 5)]
 
-def load_intrinsics():
+def load_intrinsic_configs():
     intrinsics = []
     for camera_name in camera_names:
         with open(f"data/{camera_name}/calibration.json") as f:
@@ -16,6 +16,13 @@ def load_intrinsics():
             }
             intrinsics.append(intrinsic)
     return intrinsics
+
+def load_configs():
+    configs = []
+    for camera_name in camera_names:
+        with open(f"data/{camera_name}/calibration.json") as f:
+            configs.append(json.load(f))
+    return configs
 
 def load_vid_in_directory(directory):
     vids = []
