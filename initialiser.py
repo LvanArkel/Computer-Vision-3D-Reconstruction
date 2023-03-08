@@ -12,7 +12,7 @@ def load_intrinsic_configs():
             intrinsic = {
                 "ret": calibration["ret"],
                 "mtx": np.array(calibration["mtx"], dtype="float32"),
-                "dist": np.array(calibration["dist"], dtype="float32")
+                "dist": np.array(calibration["dist"], dtype="float32"),
             }
             intrinsics.append(intrinsic)
     return intrinsics
@@ -20,8 +20,13 @@ def load_intrinsic_configs():
 def load_configs():
     configs = []
     for camera_name in camera_names:
-        with open(f"data/{camera_name}/calibration.json") as f:
-            configs.append(json.load(f))
+        with open(f"data/{camera_name}/config.json") as f:
+            config = json.load(f)
+            config["mtx"] = np.array(config["mtx"], dtype="float32")
+            config["dist"] = np.array(config["dist"], dtype="float32")
+            config["rvecs"] = np.array(config["rvecs"], dtype="float32")
+            config["tvecs"] = np.array(config["tvecs"], dtype="float32")
+            configs.append(config)
     return configs
 
 def load_vid_in_directory(directory):
