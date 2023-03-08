@@ -177,10 +177,13 @@ def get_hist(ground_truth, og):
     second = np.argsort(-stats[:,4])[1]
     red = output == second
     
-    green = (ground_truth[:,:,1] >= 250).astype('uint8')
+    green_g = (ground_truth[:,:,1] >= 250).astype('uint8')
+    green_b = (ground_truth[:,:,2] <= 10).astype('uint8')
+    green = np.logical_and(green_g, green_b).astype('uint8')
     nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(green, connectivity=4)
     second = np.argsort(-stats[:,4])[1]
     green = output == second
+
     
     blue_b = (ground_truth[:,:,2] >= 230).astype('uint8')
     blue_g = (ground_truth[:,:,1] <= 10).astype('uint8')
@@ -195,7 +198,7 @@ def get_hist(ground_truth, og):
     nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(cyan, connectivity=4)
     second = np.argsort(-stats[:,4])[1]
     cyan = output == second
-  
+
     #segmentation of all four is the union
     four = np.logical_or(red, np.logical_or(green, np.logical_or(blue, cyan))).astype('uint8')
     
@@ -204,11 +207,14 @@ def get_hist(ground_truth, og):
     green = og*np.dstack((green, green,green))
     blue = og*np.dstack((blue, blue,blue))
     cyan = og*np.dstack((cyan, cyan,cyan))
+
     
     people = [red, green, blue, cyan]
     histograms = []
     for person in people:
-        
+        plt.figure()
+        plt.imshow(person)
+        plt.show()
     #compute histogram for each channel
         histogram_r, bin_edges_r = np.histogram(person[:,:,0], bins=256, range=(0, 256))
         histogram_g, bin_edges_g = np.histogram(person[:,:,1], bins=256, range=(0, 256))
