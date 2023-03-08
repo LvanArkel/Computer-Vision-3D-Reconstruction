@@ -203,7 +203,7 @@ def get_hist(ground_truth, og):
     four = np.logical_or(red, np.logical_or(green, np.logical_or(blue, cyan))).astype('uint8')
     
     #multiply by original image to get the colored shilouette
-    red = og*np.dstack((red, red,red))
+    red = og*np.dstack((red, red,red))[:]
     green = og*np.dstack((green, green,green))
     blue = og*np.dstack((blue, blue,blue))
     cyan = og*np.dstack((cyan, cyan,cyan))
@@ -252,7 +252,7 @@ if __name__ == "__main__":
     res1 = []
     for j in range(4):
         res2 = []
-        for i in range(4):      
+        for i in range(4):
             #compute correlation for each channel
             r = np.corrcoef(histograms1[j][:,1:,0],histograms2[i][:,1:,0])[0]
             g = np.corrcoef(histograms1[j][:,1:,1],histograms2[i][:,1:,1])[0]
@@ -261,4 +261,5 @@ if __name__ == "__main__":
         res1.append(res2.index(max(res2)))
     #print the index of the second histogram to which they correspond
     #since they are in order ideal result should be 0, 1, 2, 3
-    print(res1)
+    for k in range(4):
+        print("Histogram 1 person ", k, " corresponds to histogram 2 person", res1[k])
