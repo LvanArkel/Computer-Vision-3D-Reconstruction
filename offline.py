@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 from skimage import filters
 import scipy.misc
 
@@ -139,13 +140,13 @@ def find_camera_foreground(dirname):
     vid = cv2.VideoCapture('data/background/' + dirname)
     vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
     ret, frame = vid.read()
-    
+
 
     gaussian_model = get_background_model('data/background/' + dirname)
     video = cv2.VideoCapture('data/video/' + dirname)
     video.set(cv2.CAP_PROP_POS_FRAMES, 50)
-    ret, frame = video.read()
-    
+    ret, og_frame = video.read()
+    cv2.imwrite('cam1_og.jpg', og_frame)
     
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     hsv_frame = np.array(hsv_frame)
@@ -166,27 +167,92 @@ def find_camera_foreground(dirname):
     res = (res > 0 ).astype("uint8")
     kernel = np.ones((5,5),np.uint8)
     opening = cv2.morphologyEx(res, cv2.MORPH_OPEN, kernel)
-    return opening
+    return opening, og_frame
 
+
+def get_hist(ground_truth, og):
+    #each person is one color in the ground truth
+    red = (ground_truth[:,:,0] >= 235).astype('uint8')
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(red, connectivity=4)
+    second = np.argsort(-stats[:,4])[1]
+    red = output == second
+    
+    green = (ground_truth[:,:,1] >= 250).astype('uint8')
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(green, connectivity=4)
+    second = np.argsort(-stats[:,4])[1]
+    green = output == second
+    
+    blue_b = (ground_truth[:,:,2] >= 230).astype('uint8')
+    blue_g = (ground_truth[:,:,1] <= 10).astype('uint8')
+    blue = np.logical_and(blue_b, blue_g).astype('uint8')
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(blue, connectivity=4)
+    second = np.argsort(-stats[:,4])[1]
+    blue = output == second
+    
+    cyan_b = (ground_truth[:,:,2] >= 245).astype('uint8')
+    cyan_g = (ground_truth[:,:,1] >= 245).astype('uint8')
+    cyan = np.logical_and(cyan_b, cyan_g).astype('uint8')
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(cyan, connectivity=4)
+    second = np.argsort(-stats[:,4])[1]
+    cyan = output == second
+  
+    #segmentation of all four is the union
+    four = np.logical_or(red, np.logical_or(green, np.logical_or(blue, cyan))).astype('uint8')
+    
+    #multiply by original image to get the colored shilouette
+    red = og*np.dstack((red, red,red))
+    green = og*np.dstack((green, green,green))
+    blue = og*np.dstack((blue, blue,blue))
+    cyan = og*np.dstack((cyan, cyan,cyan))
+    
+    people = [red, green, blue, cyan]
+    histograms = []
+    for person in people:
+        
+    #compute histogram for each channel
+        histogram_r, bin_edges_r = np.histogram(person[:,:,0], bins=256, range=(0, 256))
+        histogram_g, bin_edges_g = np.histogram(person[:,:,1], bins=256, range=(0, 256))
+        histogram_b, bin_edges_b = np.histogram(person[:,:,2], bins=256, range=(0, 256))
+        
+        #stack in one array
+        histogram = np.dstack((histogram_r, histogram_g, histogram_b))
+        histograms.append(histogram)
+        #value in 0 is too much so we don't show it to visualize the rest
+        plt.figure()
+        plt.plot(bin_edges_r[2:-1], histogram_r[1:-1], color='red')
+        plt.plot(bin_edges_g[2:-1], histogram_g[1:-1], color='green')
+        plt.plot(bin_edges_b[2:-1], histogram_b[1:-1], color='blue')
+        plt.show()
+    
+    
+    return histograms
+    #print(numpy.corrcoef(a,b))
+    #from scipy.stats.stats import pearsonr   
+    #print(pearsonr(a,b))
+    
 if __name__ == "__main__":
 
-    #get initial segmentation
-    res = find_camera_foreground('cam1.avi').astype("uint8")
-    plt.figure()
-    plt.imshow(res, cmap = 'gray')
-    plt.show()
+
+    res, og_frame = find_camera_foreground('cam1.avi')
+    ground_truth = np.array(Image.open('cam1.jpg'))
+    og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
+    histograms1 = get_hist(ground_truth, og)
     
-
-    image = cv2.cvtColor(res, cv2.COLOR_BGR2RGB)
-    pixel_vals = image.reshape((-1,3)) 
-    pixel_vals = np.float32(pixel_vals)
     
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
-    k = 4
-    retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS) 
-
-
-    centers = np.uint8(centers) # convert data into 8-bit values 
-    segmented_data = centers[labels.flatten()] # Mapping labels to center points( RGB Value)
-    segmented_image = segmented_data.reshape((image.shape)) # reshape data into the original image dimensions
-    plt.imshow(segmented_image)
+    res, og_frame = find_camera_foreground('cam2.avi')
+    ground_truth = np.array(Image.open('cam2gt.jpg'))
+    og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
+    histograms2 = get_hist(ground_truth, og)
+    res1 = []
+    for j in range(4):
+        res2 = []
+        for i in range(4):      
+            #compute correlation for each channel
+            r = np.corrcoef(histograms1[j][:,1:,0],histograms2[i][:,1:,0])[0]
+            g = np.corrcoef(histograms1[j][:,1:,1],histograms2[i][:,1:,1])[0]
+            b = np.corrcoef(histograms1[j][:,1:,2],histograms2[i][:,1:,2])[0]
+            res2.append(np.mean((r,g,b)))
+        res1.append(res2.index(max(res2)))
+    #print the index of the second histogram to which they correspond
+    #since they are in order ideal result should be 0, 1, 2, 3
+    print(res1)
