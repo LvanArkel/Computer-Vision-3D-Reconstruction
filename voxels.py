@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-import cv2.cv2 as cv
+import cv2 as cv
 import numpy as np
 
 voxel_size = 2
@@ -20,9 +20,9 @@ def create_lookup_table(config_names, voxel_shape, frame_shape):
         lookup = defaultdict(set)
         mtx = np.array(config["mtx"], dtype="float32")
         dist = np.array(config["dist"], dtype="float32")
-        cam_rot = np.array(config["cam_rot"], dtype="float32")
+        cam_rot = np.array(config["rvecs"], dtype="float32")
         tvecs = np.array(config["tvecs"], dtype="float32")
-        imgpoints, _ = cv2.projectPoints((points * voxel_size).astype("float32"), cam_rot, tvecs, mtx, dist)
+        imgpoints, _ = cv.projectPoints((points * voxel_size).astype("float32"), cam_rot, tvecs, mtx, dist)
         # origin, _ = cv2.projectPoints(np.array([[0, 0, 0]], dtype="float32"), cam_rot, tvecs, mtx, dist)
         # print(f"{name} origin at {origin}")
         # print(name, imgpoints)
@@ -63,12 +63,21 @@ def cluster_voxels(voxels):
     ret, label, center = cv.kmeans(voxels, 4, None, criteria, 10, cv.KMEANS_PP_CENTERS)
     return label, center
 
+def get_colored_voxel_model(lookup_table, points, names, frames, masks, color_camera):
+    camera_colored_voxels = [get_voxels_for_camera(lookup_table, name, frame, mask) for
+                             name, frame, mask in zip(names, frames, masks)]
+    vox_to_col = dict(camera_colored_voxels[color_camera])
+    voxels_per_camera = [{voxel for voxel, color in colored_voxels} for colored_voxels in camera_colored_voxels]
+    active_voxel_indices = set.intersection(*voxels_per_camera)
+    voxels = np.array([points[vox_i] for vox_i in active_voxel_indices], dtype="float32")
+    colors = np.array([vox_to_col[vox_i] for vox_i in active_voxel_indices])
+    return voxels, colors, active_voxel_indices
 
 def get_active_voxels(lookup_table, points, names, frames, masks):
     camera_colored_voxels = [get_voxels_for_camera(lookup_table, name, frame, mask) for
                              name, frame, mask in zip(names, frames, masks)]
     voxels_per_camera = [{voxel for voxel, color in colored_voxels} for colored_voxels in camera_colored_voxels]
     active_voxels = set.intersection(*voxels_per_camera)
-    voxels = [points[vox_i] for vox_i in active_voxels]
+    voxels = np.array([points[vox_i] for vox_i in active_voxels], dtype="float32")
     labels, centers = cluster_voxels(voxels)
     return voxels, labels, centers

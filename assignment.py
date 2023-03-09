@@ -1,8 +1,13 @@
+import cv2
 import glm
 import random
 import numpy as np
 
+import initialiser
+import voxels
+
 block_size = 1.0
+frame_select = 1
 
 
 def generate_grid(width, depth):
@@ -15,18 +20,57 @@ def generate_grid(width, depth):
             colors.append([1.0, 1.0, 1.0] if (x+z) % 2 == 0 else [0, 0, 0])
     return data, colors
 
+def generate_voxel_models(config_names, videos, voxel_shape, frame_size):
+    lookup_table = voxels.create_lookup_table(config_names, voxel_shape, frame_size)
+
+def initial_voxel_frame(width, height, depth):
+    shape = (
+        (-width / 2, width / 2),
+        (0, height),
+        (-depth / 2, depth / 2)
+    )
+    configs = initialiser.load_configs()
+    names = initialiser.camera_names
+    frames = [vid.read()[1] for vid in initialiser.load_videos()]
+    lookup_table, points = voxels.create_lookup_table((configs, names), shape, frames[0].shape)
+    # TODO: Get masks for first frames
+    masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
+    print(masks[0].shape)
+    active_voxels, active_colors = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
+    return active_voxels, active_colors
+
+def voxel_model_animation(width, height, depth):
+    shape = (
+        (-width / 2, width / 2),
+        (0, height),
+        (-depth / 2, depth / 2)
+    )
+    print("Starting voxel model generation")
+    configs = initialiser.load_configs()
+    names = initialiser.camera_names
+    videos = initialiser.load_videos()
+    frame_width = videos[0].get(cv2.CAP_PROP_FRAME_WIDTH)
+    frame_height = videos[0].get(cv2.CAP_PROP_FRAME_HEIGHT)
+    frame_shape = frame_width, frame_height
+    # Initialise lookup table
+    lookup_table, points = voxels.create_lookup_table((configs, names), shape, frame_shape)
+    # Go through each frame
+    min_frames = min([vid.get(cv2.CAP_PROP_FRAME_COUNT) for vid in videos])
+    for frame_i in range(0, min_frames, frame_select):
+        for vid in videos:
+            vid.set(cv2.CAP_PROP_POS_FRAMES, frame_i)
+        frames = [vid.read() for vid in videos]
+        # TODO: Background subtraction to get masks
+        masks = [frame for frame in frames]
+        # Retrieving the active voxels and colors, currently ignoring indices
+        active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
+        yield active_voxels, active_colors
+
 
 def set_voxel_positions(width, height, depth):
     # Generates random voxel locations
-    # TODO: You need to calculate proper voxel arrays instead of random ones.
-    data, colors = [], []
-    for x in range(width):
-        for y in range(height):
-            for z in range(depth):
-                if random.randint(0, 1000) < 5:
-                    data.append([x*block_size - width/2, y*block_size, z*block_size - depth/2])
-                    colors.append([x / width, z / depth, y / height])
-    return data, colors
+    data, colors = initial_voxel_frame(width, height, depth)
+    return data, colors/255
 
 
 def get_cam_positions():
