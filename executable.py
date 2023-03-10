@@ -1,3 +1,5 @@
+import sys
+
 import glm
 import glfw
 from engine.base.program import get_linked_program
@@ -9,8 +11,11 @@ from engine.effect.bloom import Bloom
 from assignment import set_voxel_positions, generate_grid, get_cam_positions, get_cam_rotation_matrices
 from engine.camera import Camera
 from engine.config import config
+import multiprocessing
 
 cube, hdrbuffer, blurbuffer, lastPosX, lastPosY = None, None, None, None, None
+animation_thread, animation_queue = None, multiprocessing.Queue()
+
 firstTime = True
 window_width, window_height = config['window_width'], config['window_height']
 camera = Camera(glm.vec3(0, 100, 0), pitch=-90, yaw=0, speed=40)
@@ -45,6 +50,7 @@ def draw_objs(obj, program, perspective, light_pos, texture, normal, specular, d
 
 def main():
     global hdrbuffer, blurbuffer, cube, window_width, window_height
+    global model_vertices, model_colors, model_dirty, animation_thread
 
     if not glfw.init():
         print('Failed to initialize GLFW.')
@@ -128,6 +134,10 @@ def main():
 
     last_time = glfw.get_time()
     while not glfw.window_should_close(window):
+        if not animation_queue.empty():
+            positions, colors = animation_queue.get()
+            cube.set_multiple_positions(positions, colors)
+
         if config['debug_mode']:
             print(glGetError())
 
@@ -165,6 +175,8 @@ def main():
         glfw.swap_buffers(window)
 
     glfw.terminate()
+    if animation_thread is not None:
+        animation_thread.terminate()
 
 
 def resize_callback(window, w, h):
@@ -178,14 +190,22 @@ def resize_callback(window, w, h):
         blurbuffer.delete()
         blurbuffer.create(window_width_px, window_height_px)
 
+def animation(queue):
+    global model_vertices, model_colors, model_dirty
+    for positions, colors in set_voxel_positions(config['world_width'], config['world_height'], config['world_width']):
+        queue.put((positions, colors))
 
 def key_callback(window, key, scancode, action, mods):
+    global animation_queue
     if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
         glfw.set_window_should_close(window, glfw.TRUE)
     if key == glfw.KEY_G and action == glfw.PRESS:
-        global cube
-        positions, colors = set_voxel_positions(config['world_width'], config['world_height'], config['world_width'])
-        cube.set_multiple_positions(positions, colors)
+        global animation_thread
+        if animation_thread is not None and animation_thread.is_alive():
+            return
+        animation_thread = multiprocessing.Process(target=animation, args=(animation_queue,))
+        animation_thread.start()
+
 
 
 def mouse_move(win, pos_x, pos_y):

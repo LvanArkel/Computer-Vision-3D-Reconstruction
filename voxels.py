@@ -1,5 +1,7 @@
 from collections import defaultdict
+import os
 
+import initialiser
 import cv2 as cv
 import numpy as np
 
@@ -39,6 +41,15 @@ def create_lookup_table(config_names, voxel_shape, frame_shape):
     return lookup_table, points
 
 
+def lookup_table(config_names, voxel_shape, frame_shape):
+    # TODO: Find saved lookup table
+    cached = initialiser.load_lookup_table(voxel_shape)
+    if cached is None:
+        cached = create_lookup_table(config_names, voxel_shape, frame_shape)
+        initialiser.save_lookup_table(cached, voxel_shape)
+    return cached
+
+
 def in_bounds(frame_shape, key):
     return 0 <= key[1] < frame_shape[0] and 0 <= key[0] < frame_shape[1]
 
@@ -63,6 +74,7 @@ def cluster_voxels(voxels):
     ret, label, center = cv.kmeans(voxels, 4, None, criteria, 10, cv.KMEANS_PP_CENTERS)
     return label, center
 
+
 def get_colored_voxel_model(lookup_table, points, names, frames, masks, color_camera):
     camera_colored_voxels = [get_voxels_for_camera(lookup_table, name, frame, mask) for
                              name, frame, mask in zip(names, frames, masks)]
@@ -72,6 +84,7 @@ def get_colored_voxel_model(lookup_table, points, names, frames, masks, color_ca
     voxels = np.array([points[vox_i] for vox_i in active_voxel_indices], dtype="float32")
     colors = np.array([vox_to_col[vox_i] for vox_i in active_voxel_indices])
     return voxels, colors, active_voxel_indices
+
 
 def get_active_voxels(lookup_table, points, names, frames, masks):
     camera_colored_voxels = [get_voxels_for_camera(lookup_table, name, frame, mask) for
