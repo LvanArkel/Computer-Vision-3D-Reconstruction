@@ -1,8 +1,13 @@
+import cv2
 import glm
 import random
 import numpy as np
 
+import initialiser
+import voxels
+
 block_size = 1.0
+frame_select = 20
 
 
 def generate_grid(width, depth):
@@ -11,22 +16,70 @@ def generate_grid(width, depth):
     data, colors = [], []
     for x in range(width):
         for z in range(depth):
-            data.append([x*block_size - width/2, -block_size, z*block_size - depth/2])
-            colors.append([1.0, 1.0, 1.0] if (x+z) % 2 == 0 else [0, 0, 0])
+            data.append([x * block_size - width / 2, -block_size, z * block_size - depth / 2])
+            colors.append([1.0, 1.0, 1.0] if (x + z) % 2 == 0 else [0, 0, 0])
     return data, colors
+
+
+def initial_voxel_frame(width, height, depth):
+    shape = (
+        (-width / 2, width / 2),
+        (0, height),
+        (-depth / 2, depth / 2)
+    )
+    configs = initialiser.load_configs()
+    names = initialiser.camera_names
+    frames = [vid.read()[1] for vid in initialiser.load_videos()]
+    lookup_table, points = voxels.lookup_table((configs, names), shape, frames[0].shape)
+    print("Generated lookup table")
+    # TODO: Get masks for first frames
+    masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
+    print(masks[0].shape)
+    active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
+    return active_voxels, active_colors
+
+
+def voxel_model_animation(width, height, depth):
+    shape = (
+        (-width / 2, width / 2),
+        (0, height),
+        (-depth / 2, depth / 2)
+    )
+    print("Starting voxel model generation")
+    configs = initialiser.load_configs()
+    names = initialiser.camera_names
+    videos = initialiser.load_videos()
+    frame_width = videos[0].get(cv2.CAP_PROP_FRAME_WIDTH)
+    frame_height = videos[0].get(cv2.CAP_PROP_FRAME_HEIGHT)
+    frame_shape = frame_width, frame_height
+    # Initialise lookup table
+    lookup_table, points = voxels.lookup_table((configs, names), shape, frame_shape)
+    print("Generated lookup table")
+    # Go through each frame
+    min_frames = int(min([vid.get(cv2.CAP_PROP_FRAME_COUNT) for vid in videos]))
+    for frame_i in range(0, min_frames, frame_select):
+        frames = []
+        for vid in videos:
+            vid.set(cv2.CAP_PROP_POS_FRAMES, frame_i)
+            ret, frame = vid.read()
+            if not ret:
+                return
+            frames.append(frame)
+        # TODO: Background subtraction to get masks
+        masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
+        # Retrieving the active voxels and colors, currently ignoring indices
+        active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
+        yield active_voxels, active_colors
 
 
 def set_voxel_positions(width, height, depth):
-    # Generates random voxel locations
-    # TODO: You need to calculate proper voxel arrays instead of random ones.
-    data, colors = [], []
-    for x in range(width):
-        for y in range(height):
-            for z in range(depth):
-                if random.randint(0, 1000) < 5:
-                    data.append([x*block_size - width/2, y*block_size, z*block_size - depth/2])
-                    colors.append([x / width, z / depth, y / height])
-    return data, colors
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+    color_map = {0: (1.0, 0.0, 0.0), 1: (0.0, 1.0, 0.0), 2: (0.0, 0.0, 1.0), 3: (1.0, 1.0, 0.0)}
+    for active_voxels, active_colors in voxel_model_animation(width, height, depth):
+        ret, labels, centers = cv2.kmeans(active_voxels, 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
+        print("Generating frame")
+        colored_voxels = [color_map[label[0]] for label in labels]
+        yield active_voxels, colored_voxels
 
 
 def get_cam_positions():
@@ -36,7 +89,7 @@ def get_cam_positions():
             [63 * block_size, 64 * block_size, 63 * block_size],
             [63 * block_size, 64 * block_size, -64 * block_size],
             [-64 * block_size, 64 * block_size, -64 * block_size]], \
-        [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [1.0, 1.0, 0]]
+           [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [1.0, 1.0, 0]]
 
 
 def get_cam_rotation_matrices():
