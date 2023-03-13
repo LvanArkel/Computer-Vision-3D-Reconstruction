@@ -3,7 +3,7 @@ import numpy as np
 
 import initialiser
 
-frame_skip = 1
+frame_skip = 20
 
 def show_frames(frames):
     # Assumes len(frames)==4
@@ -18,6 +18,10 @@ if __name__ == "__main__":
     videos = initialiser.load_videos()
     min_frames = min([vid.get(cv2.CAP_PROP_FRAME_COUNT) for vid in videos])
     for i in range(0, int(min_frames), frame_skip):
-        frames = [vid.read()[1] for vid in videos]
-        show_frames(modify_frames(frames))
-        cv2.waitKey(1)
+        frames = []
+        for vid in videos:
+            vid.set(cv2.CAP_PROP_POS_FRAMES, i)
+            _, frame = vid.read()
+            frames.append(frame)
+        show_frames(frames)
+        cv2.waitKey(0)
