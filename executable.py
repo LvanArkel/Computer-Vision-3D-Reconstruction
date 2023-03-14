@@ -8,10 +8,12 @@ from engine.buffer.texture import *
 from engine.buffer.hdrbuffer import HDRBuffer
 from engine.buffer.blurbuffer import BlurBuffer
 from engine.effect.bloom import Bloom
-from assignment import set_voxel_positions, generate_grid, get_cam_positions, get_cam_rotation_matrices
+from assignment import set_voxel_positions, generate_grid, get_cam_positions, get_cam_rotation_matrices, color_map
 from engine.camera import Camera
 from engine.config import config
+import matplotlib.pyplot as plt
 import multiprocessing
+import numpy as np
 
 cube, hdrbuffer, blurbuffer, lastPosX, lastPosY = None, None, None, None, None
 animation_thread, animation_queue = None, multiprocessing.Queue()
@@ -190,9 +192,27 @@ def resize_callback(window, w, h):
         blurbuffer.delete()
         blurbuffer.create(window_width_px, window_height_px)
 
+
 def animation(queue):
     global model_vertices, model_colors, model_dirty
-    for positions, colors in set_voxel_positions(config['world_width'], config['world_height'], config['world_width']):
+    # Axis 0 = time, axis 1 = sequences, axis 2 = XY coord
+    datapoints = np.empty((0, 4, 2))
+    sequences = []
+    width, height = config['world_width'], config['world_height']
+    plt.ion()
+    fig, ax = plt.subplots()
+    ax.set_xlim(-width/2, width/2)
+    ax.set_ylim(-width/2, width/2)
+    for i in range(4):
+        line, = ax.plot([], [], color=color_map[i])
+        sequences.append(line)
+    plt.draw()
+    for positions, colors, centers in set_voxel_positions(width, height, width):
+        datapoints = np.append(datapoints, [centers], axis=0)
+        for i in range(4):
+            sequences[i].set_data(datapoints[:, i, :].transpose())
+        fig.canvas.draw()
+        fig.canvas.flush_events()
         queue.put((positions, colors))
 
 def key_callback(window, key, scancode, action, mods):

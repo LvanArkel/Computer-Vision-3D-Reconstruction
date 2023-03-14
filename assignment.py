@@ -9,6 +9,8 @@ import voxels
 block_size = 1.0
 frame_select = 20
 
+color_map = {0: (1.0, 0.0, 0.0), 1: (0.0, 1.0, 0.0), 2: (0.0, 0.0, 1.0), 3: (1.0, 1.0, 0.0)}
+
 
 def generate_grid(width, depth):
     # Generates the floor grid locations
@@ -74,12 +76,13 @@ def voxel_model_animation(width, height, depth):
 
 def set_voxel_positions(width, height, depth):
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    color_map = {0: (1.0, 0.0, 0.0), 1: (0.0, 1.0, 0.0), 2: (0.0, 0.0, 1.0), 3: (1.0, 1.0, 0.0)}
     for active_voxels, active_colors in voxel_model_animation(width, height, depth):
+        # yield active_voxels, active_colors/255
+        # continue
         ret, labels, centers = cv2.kmeans(active_voxels, 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
         print("Generating frame")
         colored_voxels = [color_map[label[0]] for label in labels]
-        yield active_voxels, colored_voxels
+        yield active_voxels, colored_voxels, centers[:, [0, 2]]
 
 
 def get_cam_positions():
