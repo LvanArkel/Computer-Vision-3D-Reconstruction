@@ -82,9 +82,9 @@ def find_camera_foreground(gaussian_model, og_frame):
 
     
     res = (res > 0 ).astype("uint8")
-    plt.figure()
-    plt.imshow(res, cmap = 'gray')
-    plt.show()
+    # plt.figure()
+    # plt.imshow(res, cmap = 'gray')
+    # plt.show()
     
     kernel = np.ones((5,5),np.uint8)
     opening = cv2.morphologyEx(res, cv2.MORPH_OPEN, kernel)
@@ -111,9 +111,9 @@ def find_camera_foreground(gaussian_model, og_frame):
 #     output5 = output == fifth
 # =============================================================================
     output = np.logical_or(output1, np.logical_or(output2, np.logical_or(output3,output4))).astype('uint8')
-    plt.figure()
-    plt.imshow(output)
-    plt.show()
+    # plt.figure()
+    # plt.imshow(output)
+    # plt.show()
 # =============================================================================
 #     img = np.zeros((486,644,3))
 #     contours, hierarchy = cv2.findContours(output, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)

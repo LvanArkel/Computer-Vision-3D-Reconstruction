@@ -5,7 +5,7 @@ import initialiser
 import cv2 as cv
 import numpy as np
 
-voxel_size = 7
+voxel_size = 5
 
 
 def create_lookup_table(config_names, voxel_shape, frame_shape):
@@ -43,15 +43,17 @@ def create_lookup_table(config_names, voxel_shape, frame_shape):
 
 def lookup_table(config_names, voxel_shape, frame_shape):
     # TODO: Find saved lookup table
-    cached = initialiser.load_lookup_table(voxel_shape)
+    cache_key = (voxel_shape, voxel_size)
+    cached = initialiser.load_lookup_table(cache_key)
     if cached is None:
+        print("Lookup cache not found: Generating new cache")
         cached = create_lookup_table(config_names, voxel_shape, frame_shape)
-        initialiser.save_lookup_table(cached, voxel_shape)
+        initialiser.save_lookup_table(cached, cache_key)
     return cached
 
 
 def in_bounds(frame_shape, key):
-    return 0 <= key[1] < frame_shape[0] and 0 <= key[0] < frame_shape[1]
+    return 0 <= key[0] < frame_shape[0] and 0 <= key[1] < frame_shape[1]
 
 
 def get_voxels_for_camera(lookup_table, name, frame, mask):
@@ -64,6 +66,12 @@ def get_voxels_for_camera(lookup_table, name, frame, mask):
     :return: A list of pairs of voxels in the form of (voxels, color)
     """
     lookup = lookup_table[name]
+    xs = [key[0] for key in lookup.keys()]
+    ys = [key[1] for key in lookup.keys()]
+    # print("Frame shape:", frame.shape)
+    # print("Mask shape:", mask.shape)
+    # print("X range:", min(xs), max(xs))
+    # print("Y range:", min(ys), max(ys))
     colored_voxels = [(voxel, frame[key[1], key[0]]) for key, voxels in lookup.items() if mask[key[1], key[0]] == 1
                       for voxel in voxels]
     return colored_voxels
