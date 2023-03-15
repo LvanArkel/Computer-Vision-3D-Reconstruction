@@ -14,14 +14,14 @@ from PIL import Image
 
 ##FIRST GET GAUSSIAN MODELS
 
-def get_background_model(namespace):
+def get_background_model(background):
 
     hue_stack = []
     saturation_stack = []
     value_stack = []
     
     #background = cv2.VideoCapture('data/cam2/background.avi')
-    background = cv2.VideoCapture(namespace)
+    #background = cv2.VideoCapture(namespace)
     total_frames = int(background.get(cv2.CAP_PROP_FRAME_COUNT))
     
     
@@ -56,99 +56,13 @@ def get_background_model(namespace):
 
 #COMPARE IMAGE WITH BACKGROUND MODEL
 
+def find_camera_foreground(gaussian_model, og_frame):
+ 
+    #gaussian_model = get_background_model('data/background/' + dirname)
 
-def find_camera_foreground_automatic(dirname):
-
-    vid = cv2.VideoCapture('data/background/' + dirname)
-    vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    ret, frame = vid.read()
+    #cv2.imwrite('cam4og.jpg', og_frame)
     
-
-    gaussian_model = get_background_model('data/background/' + dirname)
-    video = cv2.VideoCapture('data/video/' + dirname)
-    video.set(cv2.CAP_PROP_POS_FRAMES, 1)
-    ret, frame = video.read()
-    
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    hsv_frame = np.array(hsv_frame)
-    
-    #compute the difference with the background model 
-    hue_diff = np.absolute(np.subtract(gaussian_model[:,:,0], hsv_frame[:,:,0]))
-    sat_diff = np.absolute(np.subtract(gaussian_model[:,:,2], hsv_frame[:,:,1]))
-    val_diff = np.absolute(np.subtract(gaussian_model[:,:,4], hsv_frame[:,:,2]))
-    
-    #open ground truth 
-    ground_truth = np.array(Image.open(dirname + '/cam.png'))
-    ground_truth = cv2.cvtColor(ground_truth[:,:,:3], cv2.COLOR_BGR2GRAY)
-    #find optimal threshold for hue_diff, sat_diff, and val_diff
-    ground_truth = (ground_truth > 250).astype('uint8')
-
-    t_hue = 0
-    t_sat = 0
-    t_val = 0
-    best_error_h = ground_truth.size
-    best_error_s = ground_truth.size
-    best_error_v = ground_truth.size
-    
-    #parse through all combinations of errors
-    for h in range(256):
-        hue = (hue_diff > h).astype('uint8')
-        intersect = np.logical_xor(hue,ground_truth )
-        error = np.sum(intersect)
-        if error < best_error_h:
-            t_hue = h
-            best_error_h = error
-            
-    for s in range(256):
-        sat = (sat_diff > s).astype('uint8')
-        intersect = np.logical_xor(sat,ground_truth )
-        error = np.sum(intersect)
-        if error < best_error_s:
-            t_sat = s
-            best_error_s = error
-            
-    for v in range(256):
-        val = (val_diff > v).astype('uint8')
-        intersect = np.logical_xor(val,ground_truth )
-        error = np.sum(intersect)
-        if error < best_error_v:
-            t_val = v
-            best_error_v = error    
-            
-    print(t_hue)
-    print(t_sat)
-    print(t_val)
-    
-    hue = (hue_diff > t_hue).astype('uint8')
-    sat = (sat_diff > t_sat).astype('uint8')
-    val = (val_diff > t_val).astype('uint8')
-    
-
-    s = hue+sat+val
-    s = (s >= 1).astype('uint8')
-
-    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(s, connectivity=4)
-    second = np.argsort(-stats[:,4])[1]
-    output = output == second
-
-
-    return output
-
-
-
-def find_camera_foreground(dirname):
-    vid = cv2.VideoCapture('data/background/' + dirname)
-    vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    ret, frame = vid.read()
-
-
-    gaussian_model = get_background_model('data/background/' + dirname)
-    video = cv2.VideoCapture('data/video/' + dirname)
-    video.set(cv2.CAP_PROP_POS_FRAMES, 50)
-    ret, og_frame = video.read()
-    cv2.imwrite('cam1_og.jpg', og_frame)
-    
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    hsv_frame = cv2.cvtColor(og_frame, cv2.COLOR_BGR2HSV)
     hsv_frame = np.array(hsv_frame)
     
     hue_diff = np.absolute(np.subtract(gaussian_model[:,:,0], hsv_frame[:,:,0]))
@@ -159,15 +73,57 @@ def find_camera_foreground(dirname):
     threshold = filters.threshold_otsu(hue_diff)
     hue = (hue_diff > threshold).astype("float32")
     threshold = filters.threshold_otsu(sat_diff)
-    sat = (sat_diff > threshold).astype("float32")
+    sat = (sat_diff > threshold-5).astype("float32")
     threshold = filters.threshold_otsu(val_diff)
     val = (val_diff > threshold).astype("float32")
- 
-    res = val+hue+sat
+    
+
+    res = (val+hue+sat)/3
+
+    
     res = (res > 0 ).astype("uint8")
+    plt.figure()
+    plt.imshow(res, cmap = 'gray')
+    plt.show()
+    
     kernel = np.ones((5,5),np.uint8)
     opening = cv2.morphologyEx(res, cv2.MORPH_OPEN, kernel)
-    return opening, og_frame
+    
+    dilated = cv2.dilate(res, kernel, iterations=1)
+    kernel = np.ones((2,2),np.uint8)
+    eroded = cv2.erode(dilated, kernel, iterations=1)
+ 
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(eroded, connectivity=4)
+    first = np.argsort(-stats[:,4])[1]
+    output1 = output == first
+    
+    second = np.argsort(-stats[:,4])[2]
+    output2 = output == second
+    
+    third = np.argsort(-stats[:,4])[3]
+    output3 = output == third
+    
+    fourth = np.argsort(-stats[:,4])[4]
+    output4 = output == fourth
+    
+# =============================================================================
+#     fifth = np.argsort(-stats[:,4])[5]
+#     output5 = output == fifth
+# =============================================================================
+    output = np.logical_or(output1, np.logical_or(output2, np.logical_or(output3,output4))).astype('uint8')
+    plt.figure()
+    plt.imshow(output)
+    plt.show()
+# =============================================================================
+#     img = np.zeros((486,644,3))
+#     contours, hierarchy = cv2.findContours(output, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+#     cv2.drawContours(img, contours, -1, (0,255,255), thickness=cv2.FILLED)
+#     print("Number of Contours found = " + str(len(contours)))
+#     plt.figure()
+#     plt.imshow(img, cmap ='gray')
+#     plt.show()
+# =============================================================================
+    return output
 
 
 def get_hist(ground_truth, og):
@@ -207,7 +163,7 @@ def get_hist(ground_truth, og):
     green = og*np.dstack((green, green,green))
     blue = og*np.dstack((blue, blue,blue))
     cyan = og*np.dstack((cyan, cyan,cyan))
-
+    
     
     people = [red, green, blue, cyan]
     histograms = []
@@ -237,29 +193,31 @@ def get_hist(ground_truth, og):
     #print(pearsonr(a,b))
     
 if __name__ == "__main__":
-
-
-    res, og_frame = find_camera_foreground('cam1.avi')
-    ground_truth = np.array(Image.open('cam1.jpg'))
-    og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
-    histograms1 = get_hist(ground_truth, og)
+    res = find_camera_foreground('cam3.avi', 250)
+    plt.figure()
+    plt.imshow(res)
+    plt.show()
     
-    
-    res, og_frame = find_camera_foreground('cam2.avi')
-    ground_truth = np.array(Image.open('cam2gt.jpg'))
-    og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
-    histograms2 = get_hist(ground_truth, og)
-    res1 = []
-    for j in range(4):
-        res2 = []
-        for i in range(4):
-            #compute correlation for each channel
-            r = np.corrcoef(histograms1[j][:,1:,0],histograms2[i][:,1:,0])[0]
-            g = np.corrcoef(histograms1[j][:,1:,1],histograms2[i][:,1:,1])[0]
-            b = np.corrcoef(histograms1[j][:,1:,2],histograms2[i][:,1:,2])[0]
-            res2.append(np.mean((r,g,b)))
-        res1.append(res2.index(max(res2)))
-    #print the index of the second histogram to which they correspond
-    #since they are in order ideal result should be 0, 1, 2, 3
-    for k in range(4):
-        print("Histogram 1 person ", k, " corresponds to histogram 2 person", res1[k])
+# =============================================================================
+#     res, og_frame = find_camera_foreground('cam4.avi')
+#     ground_truth = np.array(Image.open('cam3gt.jpg'))
+#     og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
+#     histograms2 = get_hist(ground_truth, og)
+#     res = np.zeros((4,4))
+#     res1 = []
+#     for j in range(4):
+#         res2 = []
+#         for i in range(4):
+#             #compute correlation for each channel
+#             r = np.corrcoef(histograms1[j][:,1:,0],histograms2[i][:,1:,0])[0]
+#             g = np.corrcoef(histograms1[j][:,1:,1],histograms2[i][:,1:,1])[0]
+#             b = np.corrcoef(histograms1[j][:,1:,2],histograms2[i][:,1:,2])[0]
+#             res2.append(np.mean((r,g,b)))
+#             res[j,i] = np.mean((r,g,b))
+#         res1.append(res2.index(max(res2)))
+#     #print the index of the second histogram to which they correspond
+#     #since they are in order ideal result should be 0, 1, 2, 3
+#     for k in range(4):
+#         print("Histogram 1, person ", k, " corresponds to histogram 2 person", res1[k])
+#     #check for clashes
+# =============================================================================

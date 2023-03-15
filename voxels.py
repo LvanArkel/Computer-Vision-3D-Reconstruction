@@ -5,7 +5,7 @@ import initialiser
 import cv2 as cv
 import numpy as np
 
-voxel_size = 2
+voxel_size = 7
 
 
 def create_lookup_table(config_names, voxel_shape, frame_shape):

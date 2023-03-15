@@ -6,6 +6,8 @@ import numpy as np
 import initialiser
 import voxels
 
+from offline import get_background_model, find_camera_foreground
+
 block_size = 1.0
 frame_select = 20
 
@@ -51,6 +53,10 @@ def voxel_model_animation(width, height, depth):
     configs = initialiser.load_configs()
     names = initialiser.camera_names
     videos = initialiser.load_videos()
+    backgrounds = initialiser.load_backgrounds()
+    b_models = []
+    for background in backgrounds:
+        b_models.append(get_background_model(background))
     frame_width = videos[0].get(cv2.CAP_PROP_FRAME_WIDTH)
     frame_height = videos[0].get(cv2.CAP_PROP_FRAME_HEIGHT)
     frame_shape = frame_width, frame_height
@@ -68,7 +74,12 @@ def voxel_model_animation(width, height, depth):
                 return
             frames.append(frame)
         # TODO: Background subtraction to get masks
-        masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
+        #PONER AQUI
+        #under the assumption that the videos are in the same order as background
+        masks = []
+        for frame, background in zip(frames, b_models):
+            masks.append(find_camera_foreground(background, frame))
+        #masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
         # Retrieving the active voxels and colors, currently ignoring indices
         active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
         yield active_voxels, active_colors
