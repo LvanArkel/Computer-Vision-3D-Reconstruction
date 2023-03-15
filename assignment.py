@@ -90,10 +90,10 @@ def set_voxel_positions(width, height, depth):
     for active_voxels, active_colors in voxel_model_animation(width, height, depth):
         # yield active_voxels, active_colors/255
         # continue
-        ret, labels, centers = cv2.kmeans(active_voxels, 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
+        ret, labels, centers = cv2.kmeans(active_voxels[:, [0, 2]], 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
         print("Generating frame")
         colored_voxels = [color_map[label[0]] for label in labels]
-        yield active_voxels, colored_voxels, centers[:, [0, 2]]
+        yield active_voxels, colored_voxels, centers
 
 
 def get_cam_positions():
