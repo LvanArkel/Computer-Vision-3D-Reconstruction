@@ -17,6 +17,7 @@ import numpy as np
 
 cube, hdrbuffer, blurbuffer, lastPosX, lastPosY = None, None, None, None, None
 animation_thread, animation_queue = None, multiprocessing.Queue()
+plot_thread, plot_queue = None, multiprocessing.Queue()
 
 firstTime = True
 window_width, window_height = config['window_width'], config['window_height']
@@ -179,6 +180,8 @@ def main():
     glfw.terminate()
     if animation_thread is not None:
         animation_thread.terminate()
+    if plot_thread is not None:
+        plot_thread.terminate()
 
 
 def resize_callback(window, w, h):
@@ -193,38 +196,48 @@ def resize_callback(window, w, h):
         blurbuffer.create(window_width_px, window_height_px)
 
 
-def animation(queue):
+def animation(anim_queue, plt_queue):
     global model_vertices, model_colors, model_dirty
     # Axis 0 = time, axis 1 = sequences, axis 2 = XY coord
-    datapoints = np.empty((0, 4, 2))
-    sequences = []
+    plt.draw()
     width, height = config['world_width'], config['world_height']
+    for positions, colors, centers in set_voxel_positions(width, height, width):
+        plt_queue.put(centers)
+        anim_queue.put((positions, colors))
+
+def plot(plt_queue):
+    sequences = []
+    datapoints = np.empty((0, 4, 2))
     plt.ion()
     fig, ax = plt.subplots()
-    ax.set_xlim(-width/2, width/2)
-    ax.set_ylim(-width/2, width/2)
+    width, height = config['world_width'], config['world_height']
+    ax.set_xlim(-width / 2, width / 2)
+    ax.set_ylim(-width / 2, width / 2)
     for i in range(4):
         line, = ax.plot([], [], color=color_map[i])
         sequences.append(line)
-    plt.draw()
-    for positions, colors, centers in set_voxel_positions(width, height, width):
-        datapoints = np.append(datapoints, [centers], axis=0)
-        for i in range(4):
-            sequences[i].set_data(datapoints[:, i, :].transpose())
+    while True:
+        if not plt_queue.empty():
+            centers = plt_queue.get()
+            datapoints = np.append(datapoints, [centers], axis=0)
+            for i in range(4):
+                sequences[i].set_data(datapoints[:, i, :].transpose())
         fig.canvas.draw()
         fig.canvas.flush_events()
-        queue.put((positions, colors))
+
 
 def key_callback(window, key, scancode, action, mods):
-    global animation_queue
+    global animation_thread, animation_queue, plot_thread, plot_queue
     if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
         glfw.set_window_should_close(window, glfw.TRUE)
     if key == glfw.KEY_G and action == glfw.PRESS:
         global animation_thread
         if animation_thread is not None and animation_thread.is_alive():
             return
-        animation_thread = multiprocessing.Process(target=animation, args=(animation_queue,))
+        animation_thread = multiprocessing.Process(target=animation, args=(animation_queue, plot_queue))
         animation_thread.start()
+        plot_thread = multiprocessing.Process(target=plot, args=(plot_queue,))
+        plot_thread.start()
 
 
 
