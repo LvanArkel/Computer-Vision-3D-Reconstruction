@@ -66,14 +66,13 @@ def offline(active_voxels, active_colors, labels):
     #histograms is a list of 4 elements that each contains 3 histograms
     return histograms
 
-def voxel_model_animation(width, height, depth):
+def voxel_model_animation(width, height, depth, configs):
     shape = (
         (-width / 2, width / 2),
         (0, height),
         (-depth / 2, depth / 2)
     )
     print("Starting voxel model generation")
-    configs = initialiser.load_configs()
     names = initialiser.camera_names
     videos = initialiser.load_videos()
     backgrounds = initialiser.load_backgrounds()
@@ -108,12 +107,26 @@ def voxel_model_animation(width, height, depth):
         active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
         yield active_voxels, active_colors
 
+def camera_distances(center_imgpoints):
+    xcoords = sorted([center_imgpoints[i,0,0] for i in range(len(center_imgpoints))])
+    return min([xcoords[i+1] - xcoords[i] for i in range(len(center_imgpoints)-1)])
+
 
 def set_voxel_positions(width, height, depth):
+    configs = initialiser.load_configs()
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
     color_model = None
-    for active_voxels, active_colors in voxel_model_animation(width, height, depth):
+    for active_voxels, active_colors in voxel_model_animation(width, height, depth, configs):
         ret, labels, centers = cv2.kmeans(active_voxels[:, [0, 2]], 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
+        centers3d = np.array([[x, 0, y] for x, y in centers])*voxels.voxel_size
+        cam_smallest_angle = []
+        for config in configs:
+            center_imgpoints, _ = cv2.projectPoints(centers3d, config["rvecs"],
+                                                 config["tvecs"], config["mtx"], config["dist"])
+            cam_smallest_angle.append(camera_distances(center_imgpoints))
+        best_camera = np.argmax(cam_smallest_angle)
+
+
         if color_model == None:
             color_model = offline(active_voxels, active_colors, labels)
 
