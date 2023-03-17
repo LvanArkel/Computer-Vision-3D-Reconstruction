@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from skimage import filters
 import scipy.misc
-
+from scipy.optimize import linear_sum_assignment
 import matplotlib.image
 from numpy import asarray
 
@@ -13,7 +13,7 @@ from PIL import Image
 
 
 ##FIRST GET GAUSSIAN MODELS
-
+#def get_background_model(background):
 def get_background_model(background):
 
     hue_stack = []
@@ -55,16 +55,24 @@ def get_background_model(background):
     return gaussian_model
 
 #COMPARE IMAGE WITH BACKGROUND MODEL
-
-def find_camera_foreground(gaussian_model, og_frame):
+#def find_camera_foreground(gaussian_model, og_frame):
+def find_camera_foreground(gaussian_model, frame):
  
     #gaussian_model = get_background_model('data/background/' + dirname)
-
-    #cv2.imwrite('cam4og.jpg', og_frame)
+    #vid = cv2.VideoCapture('data/video/' + dirname)
+# =============================================================================
+#     vid.set(cv2.CAP_PROP_POS_FRAMES, 50)
+#     ret, og_frame = vid.read()
+#     frame = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
+#     cv2.imwrite('cam2og.jpg', frame)
+#     
+#     
+# =============================================================================
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
-    hsv_frame = cv2.cvtColor(og_frame, cv2.COLOR_BGR2HSV)
     hsv_frame = np.array(hsv_frame)
     
+    #hsv_frame = np.array(frame)
     hue_diff = np.absolute(np.subtract(gaussian_model[:,:,0], hsv_frame[:,:,0]))
     sat_diff = np.absolute(np.subtract(gaussian_model[:,:,2], hsv_frame[:,:,1]))
     val_diff = np.absolute(np.subtract(gaussian_model[:,:,4], hsv_frame[:,:,2]))
@@ -125,6 +133,41 @@ def find_camera_foreground(gaussian_model, og_frame):
 # =============================================================================
     return output
 
+def hist(active_colors):
+    colors = np.array(active_colors)
+    #bins=32, range=(0, 32), 
+    b, bin_edges = np.histogram(colors[:,0], density = True)
+    g, bin_edges = np.histogram(colors[:,1], density = True)
+    r, bin_edges = np.histogram(colors[:,2], density = True)
+    histograms = [b,g,r]
+    return histograms
+
+def compare(og_hists, hists):
+    corr = np.zeros((4,4))
+    for i in range(4):
+        for j in range(4):
+            b = np.corrcoef(og_hists[i][0],hists[j][0])[0][1]
+            g = np.corrcoef(og_hists[i][1],hists[j][1])[0][1]
+            r = np.corrcoef(og_hists[i][2],hists[j][2])[0][1]
+            corr[i,j] = np.mean([g,b])
+            #corr[i,j] = 
+    row_ind, col_ind = linear_sum_assignment(corr, maximize = True)
+    ind = np.argmax(corr, axis = 1)
+    return row_ind
+
+def compare2(og_hists, hists):
+    corr = np.zeros((4,4))
+    for i in range(4):
+        for j in range(4):
+            h = cv2.compareHist(og_hists[i][0].astype('float32'), hists[j][0].astype('float32'), cv2.HISTCMP_CORREL)
+            s = cv2.compareHist(og_hists[i][1].astype('float32'), hists[j][1].astype('float32'), cv2.HISTCMP_CORREL)
+            v = cv2.compareHist(og_hists[i][2].astype('float32'), hists[j][2].astype('float32'), cv2.HISTCMP_CORREL)
+            corr[i,j] = np.mean([h,s])
+            #corr[i,j] = (h*0.8+s*0.1+v*0.1)
+    row_ind, col_ind = linear_sum_assignment(corr, maximize = True)
+    ind = np.argmax(corr, axis = 0)
+    return row_ind
+
 
 def get_hist(ground_truth, og):
     #each person is one color in the ground truth
@@ -172,12 +215,12 @@ def get_hist(ground_truth, og):
         plt.imshow(person)
         plt.show()
     #compute histogram for each channel
-        histogram_r, bin_edges_r = np.histogram(person[:,:,0], bins=256, range=(0, 256))
-        histogram_g, bin_edges_g = np.histogram(person[:,:,1], bins=256, range=(0, 256))
-        histogram_b, bin_edges_b = np.histogram(person[:,:,2], bins=256, range=(0, 256))
+        histogram_r, bin_edges_r = np.histogram(person[:,:,0], bins=256, range=(0, 256), density = True)
+        histogram_g, bin_edges_g = np.histogram(person[:,:,1], bins=256, range=(0, 256), density = True)
+        histogram_b, bin_edges_b = np.histogram(person[:,:,2], bins=256, range=(0, 256), density = True)
         
         #stack in one array
-        histogram = np.dstack((histogram_r, histogram_g, histogram_b))
+        histogram = [histogram_r.tolist(), histogram_g.tolist(), histogram_b.tolist()]
         histograms.append(histogram)
         #value in 0 is too much so we don't show it to visualize the rest
         plt.figure()
@@ -193,16 +236,19 @@ def get_hist(ground_truth, og):
     #print(pearsonr(a,b))
     
 if __name__ == "__main__":
-    res = find_camera_foreground('cam3.avi', 250)
-    plt.figure()
-    plt.imshow(res)
-    plt.show()
-    
 # =============================================================================
-#     res, og_frame = find_camera_foreground('cam4.avi')
-#     ground_truth = np.array(Image.open('cam3gt.jpg'))
-#     og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
-#     histograms2 = get_hist(ground_truth, og)
+#     res = find_camera_foreground('cam3.avi', 250)
+#     plt.figure()
+#     plt.imshow(res)
+#     plt.show()
+# =============================================================================
+
+
+    res, og_frame = find_camera_foreground('cam2.avi')
+    ground_truth = np.array(Image.open('cam2gt.jpg'))
+    og = cv2.cvtColor(og_frame, cv2.COLOR_BGR2RGB)
+    histograms = get_hist(ground_truth, og)
+# =============================================================================
 #     res = np.zeros((4,4))
 #     res1 = []
 #     for j in range(4):
@@ -221,3 +267,4 @@ if __name__ == "__main__":
 #         print("Histogram 1, person ", k, " corresponds to histogram 2 person", res1[k])
 #     #check for clashes
 # =============================================================================
+
