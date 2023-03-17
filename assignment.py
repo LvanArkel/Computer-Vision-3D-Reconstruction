@@ -43,49 +43,7 @@ def initial_voxel_frame(width, height, depth):
     return active_voxels, active_colors
 
 
-def offline(width, height, depth):
-    shape = (
-        (-width / 2, width / 2),
-        (0, height),
-        (-depth / 2, depth / 2)
-    )
-    print("Starting voxel model generation")
-    configs = initialiser.load_configs()
-    names = initialiser.camera_names
-    videos = initialiser.load_videos()
-    backgrounds = initialiser.load_backgrounds()
-    b_models = []
-    for background in backgrounds:
-        b_models.append(get_background_model(background))
-    frame_width = videos[0].get(cv2.CAP_PROP_FRAME_WIDTH)
-    frame_height = videos[0].get(cv2.CAP_PROP_FRAME_HEIGHT)
-    frame_shape = frame_width, frame_height
-    # Initialise lookup table
-    lookup_table, points = voxels.lookup_table((configs, names), shape, frame_shape)
-    print("Generated lookup table")
-    frames = []
-    for vid in videos:
-        vid.set(cv2.CAP_PROP_POS_FRAMES, 50)
-        ret, frame = vid.read()
-        #frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        if not ret:
-            return
-        frames.append(frame)
-
-    masks = []
-    for frame, background in zip(frames, b_models):
-        masks.append(find_camera_foreground(background, frame))
-    #masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
-    # Retrieving the active voxels and colors, currently ignoring indices
-    active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
-    #active_voxel = filter(lambda vox_i: points[vox_i, 1] > 12, active_voxel_indices)
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    #why do we have to iterate and is every label being stored
-
-    ret, labels, centers = cv2.kmeans(active_voxels[:, [0, 2]], 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
-    print("Generating frame")
-    colored_voxels = [color_map[label[0]] for label in labels]
-    #yield active_voxels, colored_voxels, centers
+def offline(active_voxels, active_colors, labels):
     p0 = []
     p1 = []
     p2 = []
@@ -155,13 +113,13 @@ def set_voxel_positions(width, height, depth):
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
     color_model = None
     for active_voxels, active_colors in voxel_model_animation(width, height, depth):
+        ret, labels, centers = cv2.kmeans(active_voxels[:, [0, 2]], 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
         if color_model == None:
-            color_model = offline(width, height, depth)
-            
+            color_model = offline(active_voxels, active_colors, labels)
+
         #yield active_voxels, active_colors/255, np.zeros((4,2))
         #continue
-    
-        ret, labels, centers = cv2.kmeans(active_voxels[:, [0, 2]], 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
+
         print("Generating frame")
         
         p0 = []
