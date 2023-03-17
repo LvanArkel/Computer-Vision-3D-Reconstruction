@@ -104,7 +104,7 @@ def voxel_model_animation(width, height, depth, configs):
             masks.append(find_camera_foreground(background, frame))
         #masks = [np.ones(frames[0].shape[:-1]) for i in range(len(frames))]
         # Retrieving the active voxels and colors, currently ignoring indices
-        active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks, 0)
+        active_voxels, active_colors, _ = voxels.get_colored_voxel_model(lookup_table, points, names, frames, masks)
         yield active_voxels, active_colors
 
 def camera_distances(center_imgpoints):
@@ -116,7 +116,7 @@ def set_voxel_positions(width, height, depth):
     configs = initialiser.load_configs()
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
     color_model = None
-    for active_voxels, active_colors in voxel_model_animation(width, height, depth, configs):
+    for active_voxels, active_cam_colors in voxel_model_animation(width, height, depth, configs):
         ret, labels, centers = cv2.kmeans(active_voxels[:, [0, 2]], 4, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
         centers3d = np.array([[x, 0, y] for x, y in centers])*voxels.voxel_size
         cam_smallest_angle = []
@@ -125,7 +125,7 @@ def set_voxel_positions(width, height, depth):
                                                  config["tvecs"], config["mtx"], config["dist"])
             cam_smallest_angle.append(camera_distances(center_imgpoints))
         best_camera = np.argmax(cam_smallest_angle)
-
+        active_colors = active_cam_colors[:, best_camera]
 
         if color_model == None:
             color_model = offline(active_voxels, active_colors, labels)

@@ -83,7 +83,7 @@ def cluster_voxels(voxels):
     return label, center
 
 
-def get_colored_voxel_model(lookup_table, points, names, frames, masks, color_camera):
+def get_colored_voxel_model(lookup_table, points, names, frames, masks):
     camera_colored_voxels = [get_voxels_for_camera(lookup_table, name, frame, mask) for
                              name, frame, mask in zip(names, frames, masks)]
     camera_colors = [dict(camera_colored_voxels[i]) for i in range(4)]
