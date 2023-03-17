@@ -86,11 +86,11 @@ def cluster_voxels(voxels):
 def get_colored_voxel_model(lookup_table, points, names, frames, masks, color_camera):
     camera_colored_voxels = [get_voxels_for_camera(lookup_table, name, frame, mask) for
                              name, frame, mask in zip(names, frames, masks)]
-    vox_to_col = dict(camera_colored_voxels[color_camera])
+    camera_colors = [dict(camera_colored_voxels[i]) for i in range(4)]
     voxels_per_camera = [{voxel for voxel, color in colored_voxels} for colored_voxels in camera_colored_voxels]
     active_voxel_indices = set.intersection(*voxels_per_camera)
     voxels = np.array([points[vox_i] for vox_i in active_voxel_indices], dtype="float32")
-    colors = np.array([vox_to_col[vox_i] for vox_i in active_voxel_indices])
+    colors = np.array([[vox_to_col[vox_i] for vox_to_col in camera_colors] for vox_i in active_voxel_indices])
     return voxels, colors, active_voxel_indices
 
 
