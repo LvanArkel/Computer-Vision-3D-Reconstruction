@@ -140,6 +140,13 @@ def hist(active_colors):
     g, bin_edges = np.histogram(colors[:,1], density = True)
     r, bin_edges = np.histogram(colors[:,2], density = True)
     histograms = [b,g,r]
+    
+    plt.figure()
+    plt.plot(bin_edges[2:-1], r[1:-1], color='red')
+    plt.plot(bin_edges[2:-1], g[1:-1], color='green')
+    plt.plot(bin_edges[2:-1], b[1:-1], color='blue')
+    plt.show()
+    
     return histograms
 
 def compare(og_hists, hists):
