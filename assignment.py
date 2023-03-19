@@ -6,7 +6,7 @@ import numpy as np
 import initialiser
 import voxels
 
-from offline import get_background_model, find_camera_foreground, hist, compare, compare2
+from offline import get_background_model, find_camera_foreground, hist, compare, compare2, gaussian, compare_gaussian
 
 block_size = 1.0
 frame_select = 20
@@ -44,25 +44,23 @@ def initial_voxel_frame(width, height, depth):
 
 
 def offline(active_voxels, active_colors, labels):
-    p0 = []
-    p1 = []
-    p2 = []
-    p3 = []
-    people= [p0, p1, p2, p3]
+
+    people= [[],[],[],[]]
     for active_voxel, active_color, label in zip(active_voxels, active_colors, labels):
-        if active_voxel[1] > 5:
+        if active_voxel[1] > 12 and active_voxel[1] < 18:
             if label == 0:
-                p0.append(active_color)
+                people[0].append(active_color)
             elif label == 1:
-                p1.append(active_color)
+                people[1].append(active_color)
             elif label == 2:
-                p2.append(active_color)
+                people[2].append(active_color)
             elif label == 3:
-                p3.append(active_color)
+                people[3].append(active_color)
     
     histograms = []
     for person in people:
-        histograms.append(hist(p0))
+        histograms.append(gaussian(person))
+
     #histograms is a list of 4 elements that each contains 3 histograms
     return histograms
 
@@ -92,10 +90,10 @@ def voxel_model_animation(width, height, depth, configs):
         for vid in videos:
             vid.set(cv2.CAP_PROP_POS_FRAMES, frame_i)
             ret, frame = vid.read()
-            #frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             if not ret:
                 return
-            frames.append(frame)
+            frames.append(frame_hsv)
         # TODO: Background subtraction to get masks
         #PONER AQUI
         #under the assumption that the videos are in the same order as background
@@ -135,31 +133,37 @@ def set_voxel_positions(width, height, depth):
 
         print("Generating frame")
         
-        p0 = []
-        p1 = []
-        p2 = []
-        p3 = []
-        people= [p0, p1, p2, p3]
+
+        people= [[],[],[],[]]
         for active_voxel, active_color, label in zip(active_voxels, active_colors, labels):
-            if active_voxel[1] > 5:
+            if active_voxel[1] > 12 and active_voxel[1] < 18:
                 if label == 0:
-                    p0.append(active_color)
+                    people[0].append(active_color)
                 elif label == 1:
-                    p1.append(active_color)
+                    people[1].append(active_color)
                 elif label == 2:
-                    p2.append(active_color)
+                    people[2].append(active_color)
                 elif label == 3:
-                    p3.append(active_color)
+                    people[3].append(active_color)
             
+
         histograms = []
         for person in people:
-            histograms.append(hist(p0))
-            
-        matched_labels = compare2(color_model, histograms)
-        
-        
-        colored_voxels = [color_map[matched_labels[label[0]]] for label in labels]
-        
+            histograms.append(gaussian(person))
+
+# =============================================================================
+#         means = []
+#         for person in people:
+#             means.append(gaussian(person))
+# =============================================================================
+
+        matched_labels = compare_gaussian(color_model, histograms)
+        #matched_labels = compare_gaussian(color_model, means)
+        for label in labels:
+            label[0] = matched_labels[label[0]]
+        #colored_voxels = [color_map[matched_labels[label[0]]] for label in labels]
+        colored_voxels = [color_map[label[0]] for label in labels]
+        #color_model = histograms
         yield active_voxels, colored_voxels, centers
 
 
