@@ -47,7 +47,7 @@ def offline(active_voxels, active_colors, labels):
 
     people= [[],[],[],[]]
     for active_voxel, active_color, label in zip(active_voxels, active_colors, labels):
-        if active_voxel[1] > 12 and active_voxel[1] < 18:
+        if active_voxel[1] > 12:
             if label == 0:
                 people[0].append(active_color)
             elif label == 1:
@@ -59,7 +59,7 @@ def offline(active_voxels, active_colors, labels):
     
     histograms = []
     for person in people:
-        histograms.append(gaussian(person))
+        histograms.append(hist(person))
 
     #histograms is a list of 4 elements that each contains 3 histograms
     return histograms
@@ -136,7 +136,7 @@ def set_voxel_positions(width, height, depth):
 
         people= [[],[],[],[]]
         for active_voxel, active_color, label in zip(active_voxels, active_colors, labels):
-            if active_voxel[1] > 12 and active_voxel[1] < 18:
+            if active_voxel[1] > 12:
                 if label == 0:
                     people[0].append(active_color)
                 elif label == 1:
@@ -149,20 +149,12 @@ def set_voxel_positions(width, height, depth):
 
         histograms = []
         for person in people:
-            histograms.append(gaussian(person))
+            histograms.append(hist(person))
 
-# =============================================================================
-#         means = []
-#         for person in people:
-#             means.append(gaussian(person))
-# =============================================================================
 
-        matched_labels = compare_gaussian(color_model, histograms)
-        #matched_labels = compare_gaussian(color_model, means)
-        for label in labels:
-            label[0] = matched_labels[label[0]]
-        #colored_voxels = [color_map[matched_labels[label[0]]] for label in labels]
-        colored_voxels = [color_map[label[0]] for label in labels]
+        matched_labels = compare2(color_model, histograms)
+
+        colored_voxels = [color_map[matched_labels[label[0]]] for label in labels]
         #color_model = histograms
         yield active_voxels, colored_voxels, centers
 
