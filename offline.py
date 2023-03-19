@@ -96,20 +96,21 @@ def find_camera_foreground(gaussian_model, frame):
 def hist(active_colors):
     colors = np.array(active_colors)
 
-    b, bin_edges = np.histogram(colors[:,0], bins = 16, density = True)
-    g, bin_edges = np.histogram(colors[:,1], bins = 16, density = True)
-    r, bin_edges = np.histogram(colors[:,2], bins = 16, density = True)
-    histograms = [b,g,r]
-    
-# =============================================================================
-#     plt.figure()
-#     plt.plot(bin_edges[2:-1], r[1:-1], color='red')
-#     plt.plot(bin_edges[2:-1], g[1:-1], color='green')
-#     plt.plot(bin_edges[2:-1], b[1:-1], color='blue')
-#     plt.show()
-# =============================================================================
-    
+    h, bin_edges = np.histogram(colors[:,0], bins = 12, density = True)
+    s, bin_edges = np.histogram(colors[:,1], bins = 12, density = True)
+    v, bin_edges = np.histogram(colors[:,2], bins = 12, density = True)
+    histograms = [h,s,v]
     return histograms
+
+def compare2(og_hists, hists):
+    corr = np.zeros((4,4))
+    for i in range(4):
+        for j in range(4):
+            corr[i,j] = cv2.compareHist(og_hists[i][0].astype('float32'), hists[j][0].astype('float32'), cv2.HISTCMP_BHATTACHARYYA)
+            
+    row_ind, col_ind = linear_sum_assignment(corr)
+
+    return col_ind
 
 def gaussian(active_colors):
     colors = np.array(active_colors)
@@ -134,22 +135,7 @@ def compare(og_hists, hists):
             g = np.corrcoef(og_hists[i][1],hists[j][1])[0][1]
             r = np.corrcoef(og_hists[i][2],hists[j][2])[0][1]
             corr[i,j] = np.mean([g,b])
-            #corr[i,j] = b
     row_ind, col_ind = linear_sum_assignment(corr, maximize = True)
-    ind = np.argmax(corr, axis = 1)
-    return col_ind
-
-def compare2(og_hists, hists):
-    corr = np.zeros((4,4))
-    for i in range(4):
-        for j in range(4):
-            h = cv2.compareHist(og_hists[i][0].astype('float32'), hists[j][0].astype('float32'), cv2.HISTCMP_BHATTACHARYYA)
-            s = cv2.compareHist(og_hists[i][1][1:-1].astype('float32'), hists[j][1][1:-1].astype('float32'), cv2.HISTCMP_BHATTACHARYYA)
-            v = cv2.compareHist(og_hists[i][2][1:-1].astype('float32'), hists[j][2][1:-1].astype('float32'), cv2.HISTCMP_BHATTACHARYYA)
-            corr[i,j] = np.mean([h,s])
-            corr[i,j] = h
-    row_ind, col_ind = linear_sum_assignment(corr)
-    ind = np.argmin(corr, axis = 0)
     return col_ind
 
 

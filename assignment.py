@@ -94,9 +94,7 @@ def voxel_model_animation(width, height, depth, configs):
             if not ret:
                 return
             frames.append(frame_hsv)
-        # TODO: Background subtraction to get masks
-        #PONER AQUI
-        #under the assumption that the videos are in the same order as background
+
         masks = []
         for frame, background in zip(frames, b_models):
             masks.append(find_camera_foreground(background, frame))
